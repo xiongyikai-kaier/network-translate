@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LLM 网页翻译 · 设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>LLM 网页翻译 · 设置</h1>
+
+      <section class="card">
+        <h2>模型服务</h2>
+        <div class="field">
+          <label>预设服务商</label>
+          <select id="provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="moonshot">Moonshot (Kimi)</option>
+            <option value="zhipu">智谱 GLM</option>
+            <option value="siliconflow">SiliconFlow</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">自定义</option>
+          </select>
+          <p class="hint">选择预设会自动填入 Base URL、模型名与 API 协议，你仍可手动修改。</p>
+        </div>
+
+        <div class="field">
+          <label>API 协议</label>
+          <select id="apiProtocol">
+            <option value="openai">OpenAI 兼容（/chat/completions）</option>
+            <option value="anthropic">Anthropic（/messages）</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Base URL</label>
+          <input id="baseUrl" type="text" placeholder="https://api.openai.com/v1" />
+        </div>
+
+        <div class="field">
+          <label>API Key</label>
+          <input id="apiKey" type="password" placeholder="sk-..." />
+        </div>
+
+        <div class="field">
+          <label>模型</label>
+          <input id="model" type="text" placeholder="gpt-4o-mini" />
+        </div>
+
+        <div class="field">
+          <label>Temperature</label>
+          <input id="temperature" type="number" step="0.1" min="0" max="2" />
+        </div>
+
+        <div class="field" id="max-tokens-row">
+          <label>Max Tokens（仅 Anthropic 必填）</label>
+          <input id="maxTokens" type="number" min="64" max="64000" />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>翻译选项</h2>
+        <div class="field">
+          <label>目标语言</label>
+          <input id="targetLang" type="text" placeholder="中文（简体）" />
+        </div>
+        <div class="field">
+          <label>源语言</label>
+          <select id="sourceLang">
+            <option value="auto">自动检测</option>
+            <option>English</option>
+            <option>中文</option>
+            <option>日本語</option>
+            <option>한국어</option>
+            <option>Français</option>
+            <option>Deutsch</option>
+            <option>Español</option>
+            <option>Русский</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>显示方式</label>
+          <select id="displayMode">
+            <option value="bilingual">双语对照</option>
+            <option value="replace">替换原文</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>页面浮窗按钮</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
+            <input id="showFab" type="checkbox" /> 在网页右下角显示快速翻译按钮
+          </label>
+        </div>
+        <div class="field">
+          <label>自动翻译</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
+            <input id="autoTranslate" type="checkbox" /> 访问网页时自动翻译（首次加载后触发一次）
+          </label>
+        </div>
+        <div class="field">
+          <label>自动翻译黑名单（每行一个域名，不自动翻译该域名及其子域名）</label>
+          <textarea id="autoTranslateBlocklist" rows="3" placeholder="example.com&#10;docs.python.org"></textarea>
+        </div>
+        <div class="field">
+          <label>每批最大条数</label>
+          <input id="batchSize" type="number" min="1" max="100" />
+        </div>
+        <div class="field">
+          <label>每批最大字符数</label>
+          <input id="maxCharsPerBatch" type="number" min="200" max="20000" />
+        </div>
+        <div class="field">
+          <label>并发数</label>
+          <input id="concurrency" type="number" min="1" max="10" />
+        </div>
+        <div class="field">
+          <label>System Prompt</label>
+          <textarea id="systemPrompt" rows="5"></textarea>
+          <p class="hint">支持占位符 <code>{targetLang}</code>。</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>翻译缓存</h2>
+        <p class="hint">
+          相同「目标语言 + 模型 + 文本」会命中缓存，无需再次调用大模型。页面翻译会先用缓存立刻渲染，再调 LLM 补齐未命中项。
+        </p>
+        <div class="actions" style="margin-top: 6px;">
+          <button id="cacheRefresh">刷新统计</button>
+          <button id="cacheClear">清空缓存</button>
+          <span id="cacheStats" class="hint" style="margin:0;"></span>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="save" class="primary">保存</button>
+        <button id="test">测试连接</button>
+        <button id="reset">恢复默认</button>
+        <span id="status"></span>
+      </div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LLM 网页翻译</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="title">LLM 网页翻译</div>
+        <a id="open-options" href="#">设置</a>
+      </header>
+
+      <div class="row master">
+        <label><b id="enabled-label">已启用</b></label>
+        <label class="switch">
+          <input type="checkbox" id="toggle-enabled" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <fieldset id="main-panel" class="main-panel">
+      <div class="row">
+        <label>目标语言</label>
+        <select id="target-lang">
+          <option>中文（简体）</option>
+          <option>中文（繁體）</option>
+          <option>English</option>
+          <option>日本語</option>
+          <option>한국어</option>
+          <option>Français</option>
+          <option>Deutsch</option>
+          <option>Español</option>
+          <option>Русский</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>显示方式</label>
+        <select id="display-mode">
+          <option value="bilingual">双语对照</option>
+          <option value="replace">替换原文</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button id="btn-translate" class="primary">翻译当前页面</button>
+        <button id="btn-restore">恢复原文</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="quick">
+        <div class="quick-label">快速翻译</div>
+        <textarea id="quick-input" rows="3" placeholder="输入要翻译的文本，Ctrl/⌘+Enter 翻译"></textarea>
+        <div class="actions">
+          <button id="btn-quick-translate" class="primary">翻译</button>
+          <button id="btn-quick-copy" disabled>复制</button>
+          <button id="btn-quick-clear">清空</button>
+        </div>
+        <div id="quick-output" class="quick-output" hidden></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row compact">
+        <label>自动翻译</label>
+        <label class="switch">
+          <input type="checkbox" id="toggle-auto" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="site-rule" class="site-rule" hidden>
+        <span id="site-host">—</span>
+        <button id="site-toggle" class="linkish">排除本站</button>
+      </div>
+      <div class="row compact">
+        <label>页面浮窗</label>
+        <label class="switch">
+          <input type="checkbox" id="toggle-fab" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="hint">
+        <span id="shortcut-hint">快捷键：加载中…</span><br />
+        首次使用请先在 <a id="open-options-2" href="#">设置</a> 中填入 API Key。
+      </div>
+      </fieldset>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>
