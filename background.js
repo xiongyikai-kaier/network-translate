@@ -20,7 +20,8 @@ const DEFAULT_SETTINGS = {
   maxCharsPerBatch: 3000,
   concurrency: 3,
   showFab: true,
-  autoTranslateAllowlist: []
+  autoTranslateAllowlist: [],
+  viewportFirst: true
 };
 
 async function getSettings() {

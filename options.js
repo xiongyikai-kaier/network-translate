@@ -27,7 +27,8 @@ const DEFAULTS = {
   maxCharsPerBatch: 3000,
   concurrency: 3,
   showFab: true,
-  autoTranslateAllowlist: []
+  autoTranslateAllowlist: [],
+  viewportFirst: true
 };
 
 const $ = (id) => document.getElementById(id);
@@ -49,6 +50,7 @@ async function load() {
   $("maxCharsPerBatch").value = s.maxCharsPerBatch;
   $("concurrency").value = s.concurrency;
   $("showFab").checked = s.showFab !== false;
+  $("viewportFirst").checked = s.viewportFirst !== false;
   $("autoTranslateAllowlist").value = (s.autoTranslateAllowlist || []).join("\n");
   toggleProtocolFields();
 }
@@ -70,6 +72,7 @@ function collect() {
     maxCharsPerBatch: Math.max(200, Number($("maxCharsPerBatch").value) || 3000),
     concurrency: Math.max(1, Number($("concurrency").value) || 3),
     showFab: $("showFab").checked,
+    viewportFirst: $("viewportFirst").checked,
     autoTranslateAllowlist: $("autoTranslateAllowlist").value
       .split(/\r?\n/)
       .map((s) => s.trim().toLowerCase())

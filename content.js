@@ -687,20 +687,40 @@ async function runMutationTranslate() {
   );
   pendingNodes.clear();
   if (!nodes.length) return;
-  const texts = nodes.map((n) => n.nodeValue.trim());
+
   const settings = await getSettings();
+  const viewportFirst = settings.viewportFirst !== false;
+  let visibleNodes = nodes;
+  let offscreenNodes = [];
+  if (viewportFirst) {
+    visibleNodes = [];
+    for (const n of nodes) {
+      if (isInViewport(n.parentElement)) visibleNodes.push(n);
+      else offscreenNodes.push(n);
+    }
+    if (visibleNodes.length === 0) {
+      visibleNodes = nodes;
+      offscreenNodes = [];
+    }
+  }
+
+  const texts = visibleNodes.map((n) => n.nodeValue.trim());
   const applied = new Set();
   try {
     const cached = await requestTranslate(texts, { cacheOnly: true });
     if (cached.some(Boolean)) {
-      applyTranslations(nodes, cached, settings.displayMode, applied);
+      applyTranslations(visibleNodes, cached, settings.displayMode, applied);
     }
   } catch (_) {}
   try {
     const full = await requestTranslate(texts);
-    applyTranslations(nodes, full, settings.displayMode, applied);
+    applyTranslations(visibleNodes, full, settings.displayMode, applied);
   } catch (err) {
     console.warn("[LLM 翻译] 自动翻译新增内容失败:", err?.message || err);
+  }
+
+  if (offscreenNodes.length > 0) {
+    observeOffscreenNodes(offscreenNodes);
   }
 }
 
