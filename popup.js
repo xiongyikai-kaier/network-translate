@@ -231,11 +231,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   $("btn-translate").addEventListener("click", async () => {
     await saveBasics();
-    await sendToActive({ type: "TRANSLATE_PAGE" });
+    // 不等待翻译完成，立刻关 popup（整页翻译可能耗时数秒）
+    sendToActive({ type: "TRANSLATE_PAGE" });
     window.close();
   });
-  $("btn-restore").addEventListener("click", async () => {
-    await sendToActive({ type: "RESTORE_PAGE" });
+  $("btn-restore").addEventListener("click", () => {
+    sendToActive({ type: "RESTORE_PAGE" });
     window.close();
   });
   const openOpts = (e) => {

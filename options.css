@@ -93,6 +93,21 @@ button.primary:hover { filter: brightness(1.05); }
 .reward-section {
   text-align: center;
 }
+.guide-banner {
+  background: #eef3ff;
+  border-color: #d7e2ff;
+}
+.guide-banner a {
+  color: #4f8cff;
+  text-decoration: none;
+}
+.guide-banner a:hover {
+  text-decoration: underline;
+}
+
+.reward-section {
+  text-align: center;
+}
 .reward-section h2 {
   text-align: left;
 }
@@ -111,6 +126,7 @@ button.primary:hover { filter: brightness(1.05); }
   h1 { color: #8ab3ff; }
   h2 { color: #cbd1dc; }
   .card { background: #22242b; border-color: #2f323b; }
+  .guide-banner { background: #232b3d; border-color: #2f3a54; }
   .field label { color: #b0b6c2; }
   input, select, textarea { background: #2a2c33; border-color: #3a3d46; color: #eaecef; }
   .hint { color: #9aa0a6; }

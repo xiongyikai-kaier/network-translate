@@ -1,7 +1,7 @@
 const PROVIDER_PRESETS = {
   openai:       { protocol: "openai",    baseUrl: "https://api.openai.com/v1",            model: "gpt-4o-mini" },
   anthropic:    { protocol: "anthropic", baseUrl: "https://api.anthropic.com/v1",         model: "claude-haiku-4-5" },
-  deepseek:     { protocol: "openai",    baseUrl: "https://api.deepseek.com/v1",          model: "deepseek-chat" },
+  deepseek:     { protocol: "openai",    baseUrl: "https://api.deepseek.com/v1",          model: "deepseek-v4-flash" },
   moonshot:     { protocol: "openai",    baseUrl: "https://api.moonshot.cn/v1",           model: "moonshot-v1-8k" },
   zhipu:        { protocol: "openai",    baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
   siliconflow:  { protocol: "openai",    baseUrl: "https://api.siliconflow.cn/v1",        model: "Qwen/Qwen2.5-7B-Instruct" },
@@ -30,7 +30,8 @@ const DEFAULTS = {
   autoTranslateAllowlist: [],
   viewportFirst: true,
   maxCacheEntries: 5000,
-  inlineSelection: true
+  inlineSelection: true,
+  hideToast: false
 };
 
 const $ = (id) => document.getElementById(id);
@@ -56,6 +57,7 @@ async function load() {
   $("autoTranslateAllowlist").value = (s.autoTranslateAllowlist || []).join("\n");
   $("maxCacheEntries").value = s.maxCacheEntries;
   $("inlineSelection").checked = s.inlineSelection !== false;
+  $("hideToast").checked = !!s.hideToast;
   toggleProtocolFields();
 }
 
@@ -82,7 +84,8 @@ function collect() {
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
     maxCacheEntries: Math.max(100, Number($("maxCacheEntries").value) || 5000),
-    inlineSelection: $("inlineSelection").checked
+    inlineSelection: $("inlineSelection").checked,
+    hideToast: $("hideToast").checked
   };
 }
 
@@ -114,7 +117,7 @@ async function testConnection() {
     await chrome.storage.sync.set(data);
     const resp = await chrome.runtime.sendMessage({
       type: "LLM_TRANSLATE",
-      payload: { texts: "Hello, world!", targetLang: data.targetLang }
+      payload: { texts: "Hello, world!", targetLang: data.targetLang, skipCache: true }
     });
     if (!resp?.ok) throw new Error(resp?.error || "未知错误");
     setStatus(`OK，测试译文：${String(resp.result).slice(0, 60)}`, "ok");
@@ -140,6 +143,11 @@ async function refreshCacheStats() {
 document.addEventListener("DOMContentLoaded", async () => {
   await load();
   refreshCacheStats();
+
+  $("guide-link")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL("guide.html") });
+  });
 
   $("provider").addEventListener("change", () => {
     const preset = PROVIDER_PRESETS[$("provider").value];

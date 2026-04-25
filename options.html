@@ -9,6 +9,12 @@
     <main>
       <h1>AI 网页翻译 · 设置</h1>
 
+      <section class="card guide-banner">
+        <p style="margin:0;text-align:center;">
+          <a href="guide.html" id="guide-link" style="font-size:13px;">没有 API Key？查看「免费获取智谱 GLM API Key」图文教程 →</a>
+        </p>
+      </section>
+
       <section class="card">
         <h2>模型服务</h2>
         <div class="field">
@@ -103,6 +109,12 @@
           <label>滑词翻译</label>
           <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
             <input id="inlineSelection" type="checkbox" checked /> 选中文本后自动弹窗显示译文
+          </label>
+        </div>
+        <div class="field">
+          <label>翻译提示</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
+            <input id="hideToast" type="checkbox" /> 隐藏"翻译中…/已翻译 X 段"等右上角提示（浮窗仍会显示加载状态）
           </label>
         </div>
         <div class="field">

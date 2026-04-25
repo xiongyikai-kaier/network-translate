@@ -124,7 +124,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-async function handleTranslate({ texts, targetLang, sourceLang, cacheOnly }) {
+async function handleTranslate({ texts, targetLang, sourceLang, cacheOnly, skipCache }) {
   const settings = await getSettings();
   if (settings.enabled === false) {
     throw new Error("扩展已禁用");
@@ -137,7 +137,9 @@ async function handleTranslate({ texts, targetLang, sourceLang, cacheOnly }) {
   if (items.length === 0) return isArray ? [] : "";
 
   const cacheOpts = { targetLang: tgt, model: settings.model };
-  const { results, missingIndices } = await cacheLookup(items, cacheOpts);
+  const { results, missingIndices } = skipCache
+    ? { results: new Array(items.length), missingIndices: items.map((_, i) => i) }
+    : await cacheLookup(items, cacheOpts);
 
   if (cacheOnly || missingIndices.length === 0) {
     return isArray ? results : (results[0] ?? "");
@@ -174,7 +176,7 @@ async function handleTranslate({ texts, targetLang, sourceLang, cacheOnly }) {
       pairs.push([items[origIdx], tr]);
     }
   }
-  if (pairs.length) cachePut(pairs, cacheOpts);
+  if (pairs.length && !skipCache) cachePut(pairs, cacheOpts);
 
   return isArray ? results : (results[0] ?? "");
 }

@@ -155,18 +155,22 @@ async function translatePage() {
       }
     }
 
+    let visibleResult = { apiCalled: false };
     if (visibleNodes.length > 0) {
-      await translateNodeBatch(visibleNodes, settings);
+      visibleResult = await translateNodeBatch(visibleNodes, settings);
     }
 
     state.translated = true;
     if (offscreenNodes.length > 0) {
       observeOffscreenNodes(offscreenNodes);
-      showToast(
-        `已翻译屏幕内 ${visibleNodes.length} 段，剩余 ${offscreenNodes.length} 段将随滚动加载`
-      );
-    } else {
-      showToast(`已翻译 ${visibleNodes.length} 段文本`);
+      if (visibleResult.apiCalled) {
+        showToast(
+          `已翻译屏幕内 ${visibleNodes.length} 段，剩余 ${offscreenNodes.length} 段将随滚动加载`,
+          { id: "llm-progress" }
+        );
+      }
+    } else if (visibleResult.apiCalled) {
+      showToast(`已翻译 ${visibleNodes.length} 段文本`, { id: "llm-progress" });
     }
     startMutationObserver();
   } finally {
@@ -175,20 +179,31 @@ async function translatePage() {
   }
 }
 
-async function translateNodeBatch(nodes, settings) {
-  if (!nodes.length) return;
+async function translateNodeBatch(nodes, settings, { showProgress = true } = {}) {
+  if (!nodes.length) return { apiCalled: false };
   const texts = nodes.map((n) => n.nodeValue.trim());
   const applied = new Set();
-  // 阶段 1：缓存命中先渲染
+  let cached = null;
   try {
-    const cached = await requestTranslate(texts, { cacheOnly: true });
+    cached = await requestTranslate(texts, { cacheOnly: true });
     if (cached.some(Boolean)) {
       applyTranslations(nodes, cached, settings.displayMode, applied);
     }
   } catch (_) {}
-  // 阶段 2：LLM 补翻译未命中项
-  const full = await requestTranslate(texts);
-  applyTranslations(nodes, full, settings.displayMode, applied);
+  // 全部命中缓存时跳过 toast 与完整 API 调用
+  if (cached && cached.length === texts.length && cached.every((r) => typeof r === "string" && r)) {
+    return { apiCalled: false };
+  }
+  if (showProgress) showToast("翻译中…", { sticky: true, id: "llm-progress" });
+  try {
+    const full = await requestTranslate(texts);
+    if (showProgress) dismissToast("llm-progress");
+    applyTranslations(nodes, full, settings.displayMode, applied);
+    return { apiCalled: true };
+  } catch (err) {
+    if (showProgress) dismissToast("llm-progress");
+    throw err;
+  }
 }
 
 async function translateSelection(text) {
@@ -334,10 +349,14 @@ async function runLazyTranslate() {
   lazyPendingNodes.clear();
   if (!nodes.length) return;
   const settings = await getSettings();
+  let result = { apiCalled: false };
   try {
-    await translateNodeBatch(nodes, settings);
+    result = await translateNodeBatch(nodes, settings);
   } catch (err) {
     console.warn("[AI 翻译] 视口懒翻译失败:", err?.message || err);
+  }
+  if (result.apiCalled) {
+    showToast(`已翻译 ${nodes.length} 段文本`, { id: "llm-progress" });
   }
 }
 
@@ -356,6 +375,13 @@ async function getSettings() {
 }
 
 // ——— UI：Toast ———
+let toastHidden = false;
+(async function initToastSetting() {
+  try {
+    const s = await chrome.storage.sync.get({ hideToast: false });
+    toastHidden = !!s.hideToast;
+  } catch (_) {}
+})();
 function ensureToastHost() {
   let host = document.getElementById("llm-translate-toast-host");
   if (host) return host;
@@ -365,6 +391,7 @@ function ensureToastHost() {
   return host;
 }
 function showToast(text, opts = {}) {
+  if (toastHidden) return null;
   const host = ensureToastHost();
   const { sticky = false, id } = opts;
   if (id) dismissToast(id);
@@ -475,7 +502,7 @@ function clampTopPct(pct) {
 }
 
 function applyFabPosition(btn, pct) {
-  const h = btn.offsetHeight || 44;
+  const h = btn.offsetHeight || 32;
   const maxTop = window.innerHeight - h - FAB_MARGIN;
   const minTop = FAB_MARGIN;
   let top = (clampTopPct(pct) / 100) * window.innerHeight;
@@ -738,17 +765,21 @@ async function runMutationTranslate() {
 
   const texts = visibleNodes.map((n) => n.nodeValue.trim());
   const applied = new Set();
+  let cached = null;
   try {
-    const cached = await requestTranslate(texts, { cacheOnly: true });
+    cached = await requestTranslate(texts, { cacheOnly: true });
     if (cached.some(Boolean)) {
       applyTranslations(visibleNodes, cached, settings.displayMode, applied);
     }
   } catch (_) {}
-  try {
-    const full = await requestTranslate(texts);
-    applyTranslations(visibleNodes, full, settings.displayMode, applied);
-  } catch (err) {
-    console.warn("[AI 翻译] 自动翻译新增内容失败:", err?.message || err);
+  const allCached = cached && cached.length === texts.length && cached.every((r) => typeof r === "string" && r);
+  if (!allCached) {
+    try {
+      const full = await requestTranslate(texts);
+      applyTranslations(visibleNodes, full, settings.displayMode, applied);
+    } catch (err) {
+      console.warn("[AI 翻译] 自动翻译新增内容失败:", err?.message || err);
+    }
   }
 
   if (offscreenNodes.length > 0) {
@@ -784,6 +815,12 @@ if (document.readyState === "complete" || document.readyState === "interactive")
 
 chrome.storage?.onChanged?.addListener(async (changes, area) => {
   if (area !== "sync") return;
+  if ("hideToast" in changes) {
+    toastHidden = !!changes.hideToast.newValue;
+    if (toastHidden) {
+      document.querySelectorAll(".llm-translate-toast").forEach((n) => n.remove());
+    }
+  }
   if ("enabled" in changes) {
     const enabled = changes.enabled.newValue !== false;
     if (!enabled) {
