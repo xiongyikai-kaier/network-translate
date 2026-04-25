@@ -1,0 +1,13 @@
+.claude
+other
+release/
+
+# macOS
+.DS_Store
+
+# 构建产物
+ai-translate-v*.zip
+
+# 商店素材原图与生成截图
+Snipaste_*.png
+screenshot-*-1280x800.png
