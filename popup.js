@@ -1,31 +1,63 @@
 const $ = (id) => document.getElementById(id);
 
+let currentHost = "";
+
 async function load() {
   const s = await chrome.storage.sync.get({
     enabled: true,
     targetLang: "中文（简体）",
     displayMode: "bilingual",
     showFab: true,
-    autoTranslate: false
+    autoTranslateAllowlist: []
   });
   $("toggle-enabled").checked = s.enabled !== false;
   $("target-lang").value = s.targetLang;
   $("display-mode").value = s.displayMode;
   $("toggle-fab").checked = s.showFab !== false;
-  $("toggle-auto").checked = !!s.autoTranslate;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  currentHost = hostOf(tab?.url || "");
+  renderSiteAuto(s.autoTranslateAllowlist || []);
   renderEnabledState();
 }
 
-async function save() {
+async function saveBasics() {
   await chrome.storage.sync.set({
     enabled: $("toggle-enabled").checked,
     targetLang: $("target-lang").value,
     displayMode: $("display-mode").value,
-    showFab: $("toggle-fab").checked,
-    autoTranslate: $("toggle-auto").checked
+    showFab: $("toggle-fab").checked
   });
-  renderSiteRule();
   renderEnabledState();
+}
+
+function renderSiteAuto(list) {
+  const hostEl = $("site-host");
+  const toggle = $("toggle-auto");
+  if (!currentHost) {
+    hostEl.textContent = "（不支持当前页）";
+    hostEl.classList.add("empty");
+    hostEl.title = "";
+    toggle.checked = false;
+    toggle.disabled = true;
+    return;
+  }
+  hostEl.textContent = currentHost;
+  hostEl.classList.remove("empty");
+  hostEl.title = currentHost;
+  toggle.disabled = false;
+  toggle.checked = (list || []).map((h) => (h || "").toLowerCase()).includes(currentHost);
+}
+
+async function toggleSiteAuto() {
+  if (!currentHost) return;
+  const { autoTranslateAllowlist = [] } = await chrome.storage.sync.get({
+    autoTranslateAllowlist: []
+  });
+  const set = new Set(autoTranslateAllowlist.map((h) => (h || "").toLowerCase()));
+  if ($("toggle-auto").checked) set.add(currentHost);
+  else set.delete(currentHost);
+  await chrome.storage.sync.set({ autoTranslateAllowlist: [...set] });
 }
 
 function renderEnabledState() {
@@ -44,36 +76,13 @@ function renderEnabledState() {
 }
 
 function hostOf(url) {
-  try { return new URL(url).hostname.toLowerCase(); } catch (_) { return ""; }
-}
-
-async function renderSiteRule() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const host = hostOf(tab?.url || "");
-  const autoOn = $("toggle-auto").checked;
-  const row = $("site-rule");
-  if (!autoOn || !host) { row.hidden = true; return; }
-  const { autoTranslateBlocklist = [] } =
-    await chrome.storage.sync.get({ autoTranslateBlocklist: [] });
-  const blocked = autoTranslateBlocklist.includes(host);
-  row.hidden = false;
-  $("site-host").textContent = host;
-  $("site-host").title = host;
-  $("site-toggle").textContent = blocked ? "在本站启用自动翻译" : "在本站停用自动翻译";
-  $("site-toggle").dataset.host = host;
-  $("site-toggle").dataset.blocked = blocked ? "1" : "0";
-}
-
-async function toggleSiteRule() {
-  const host = $("site-toggle").dataset.host;
-  if (!host) return;
-  const { autoTranslateBlocklist = [] } =
-    await chrome.storage.sync.get({ autoTranslateBlocklist: [] });
-  const set = new Set(autoTranslateBlocklist);
-  if (set.has(host)) set.delete(host);
-  else set.add(host);
-  await chrome.storage.sync.set({ autoTranslateBlocklist: [...set] });
-  renderSiteRule();
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return "";
+    return u.hostname.toLowerCase();
+  } catch (_) {
+    return "";
+  }
 }
 
 async function sendToActive(msg) {
@@ -185,13 +194,11 @@ async function doQuickTranslate() {
 document.addEventListener("DOMContentLoaded", async () => {
   await load();
   renderShortcutHint();
-  $("toggle-enabled").addEventListener("change", save);
-  $("target-lang").addEventListener("change", save);
-  $("display-mode").addEventListener("change", save);
-  $("toggle-fab").addEventListener("change", save);
-  $("toggle-auto").addEventListener("change", save);
-  $("site-toggle").addEventListener("click", toggleSiteRule);
-  renderSiteRule();
+  $("toggle-enabled").addEventListener("change", saveBasics);
+  $("target-lang").addEventListener("change", saveBasics);
+  $("display-mode").addEventListener("change", saveBasics);
+  $("toggle-fab").addEventListener("change", saveBasics);
+  $("toggle-auto").addEventListener("change", toggleSiteAuto);
 
   $("btn-quick-translate").addEventListener("click", doQuickTranslate);
   $("quick-input").addEventListener("keydown", (e) => {
@@ -219,7 +226,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("quick-input").focus();
   });
   $("btn-translate").addEventListener("click", async () => {
-    await save();
+    await saveBasics();
     await sendToActive({ type: "TRANSLATE_PAGE" });
     window.close();
   });

@@ -29,6 +29,14 @@ const MUTATION_DEBOUNCE_MS = 400;
 const URL_POLL_MS = 400;
 const SPA_SETTLE_MS = 500;
 
+// ——— 视口优先翻译 ———
+let viewportObserver = null;
+let lazyParentMap = new WeakMap(); // parent element -> [textNodes]
+let lazyPendingNodes = new Set();
+let lazyTranslateTimer = null;
+const VIEWPORT_MARGIN_PX = 200; // 提前一屏的 margin，预翻译临近视口的内容
+const LAZY_DEBOUNCE_MS = 250;
+
 async function isEnabled() {
   const s = await getSettings();
   return s.enabled !== false;
@@ -76,6 +84,20 @@ function isVisible(el) {
   return true;
 }
 
+function isInViewport(el, margin = VIEWPORT_MARGIN_PX) {
+  if (!el || el.nodeType !== 1) return true;
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return false;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+  return (
+    rect.bottom > -margin &&
+    rect.top < vh + margin &&
+    rect.right > -margin &&
+    rect.left < vw + margin
+  );
+}
+
 function shouldSkip(node) {
   let el = node.nodeType === 3 ? node.parentElement : node;
   while (el) {
@@ -110,40 +132,76 @@ async function translatePage() {
   if (state.translating) return;
   state.translating = true;
   updateFabState();
-  showToast("正在翻译页面…", { sticky: true, id: "llm-progress" });
+  showToast("正在翻译屏幕内文本…", { sticky: true, id: "llm-progress" });
   try {
     const settings = await getSettings();
-    const nodes = collectTextNodes(document.body);
-    if (nodes.length === 0) {
+    const allNodes = collectTextNodes(document.body);
+    if (allNodes.length === 0) {
       showToast("未找到可翻译文本");
       return;
     }
-    const texts = nodes.map((n) => n.nodeValue.trim());
-    const applied = new Set();
 
-    // 阶段 1：立刻用缓存渲染（不调 LLM）
-    try {
-      const cached = await requestTranslate(texts, { cacheOnly: true });
-      const hit = cached.filter(Boolean).length;
-      if (hit > 0) {
-        applyTranslations(nodes, cached, settings.displayMode, applied);
-        showToast(`缓存命中 ${hit}/${nodes.length}，正在翻译剩余…`, {
-          sticky: true, id: "llm-progress"
-        });
+    const viewportFirst = settings.viewportFirst !== false;
+    let visibleNodes = allNodes;
+    let offscreenNodes = [];
+    if (viewportFirst) {
+      visibleNodes = [];
+      for (const n of allNodes) {
+        if (isInViewport(n.parentElement)) visibleNodes.push(n);
+        else offscreenNodes.push(n);
       }
-    } catch (_) {}
+      // 整页都没人看到（极少见），就退回旧逻辑
+      if (visibleNodes.length === 0) {
+        visibleNodes = allNodes;
+        offscreenNodes = [];
+      }
+    }
 
-    // 阶段 2：LLM 补翻译未命中项
-    const full = await requestTranslate(texts);
-    applyTranslations(nodes, full, settings.displayMode, applied);
+    if (visibleNodes.length > 0) {
+      await translateNodeBatch(visibleNodes, settings, { id: "llm-progress" });
+    }
+
     state.translated = true;
-    showToast(`已翻译 ${nodes.length} 段文本`, { id: "llm-progress" });
+    if (offscreenNodes.length > 0) {
+      observeOffscreenNodes(offscreenNodes);
+      showToast(
+        `已翻译屏幕内 ${visibleNodes.length} 段，剩余 ${offscreenNodes.length} 段将随滚动加载`,
+        { id: "llm-progress" }
+      );
+    } else {
+      showToast(`已翻译 ${visibleNodes.length} 段文本`, { id: "llm-progress" });
+    }
     startMutationObserver();
   } finally {
     state.translating = false;
     updateFabState();
     dismissToast("llm-progress");
   }
+}
+
+async function translateNodeBatch(nodes, settings, progressOpts) {
+  if (!nodes.length) return;
+  const texts = nodes.map((n) => n.nodeValue.trim());
+  const applied = new Set();
+  // 阶段 1：缓存命中先渲染
+  try {
+    const cached = await requestTranslate(texts, { cacheOnly: true });
+    if (cached.some(Boolean)) {
+      applyTranslations(nodes, cached, settings.displayMode, applied);
+      if (progressOpts) {
+        const hit = cached.filter(Boolean).length;
+        if (hit > 0 && hit < nodes.length) {
+          showToast(`缓存命中 ${hit}/${nodes.length}，正在翻译剩余…`, {
+            sticky: true,
+            id: progressOpts.id
+          });
+        }
+      }
+    }
+  } catch (_) {}
+  // 阶段 2：LLM 补翻译未命中项
+  const full = await requestTranslate(texts);
+  applyTranslations(nodes, full, settings.displayMode, applied);
 }
 
 async function translateSelection(text) {
@@ -191,6 +249,7 @@ function applyTranslations(nodes, translated, mode, applied) {
 
 function restorePage() {
   stopMutationObserver();
+  stopViewportObserver();
   for (const [node, original] of state.originalMap) {
     try { node.nodeValue = original; } catch (_) {}
   }
@@ -203,6 +262,86 @@ function restorePage() {
   processedNodes = new WeakSet();
   updateFabState();
   showToast("已恢复原文");
+}
+
+// ——— 视口懒翻译：滚到附近时再翻 ———
+function ensureViewportObserver() {
+  if (viewportObserver) return viewportObserver;
+  viewportObserver = new IntersectionObserver(
+    (entries) => {
+      let any = false;
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const target = entry.target;
+        const tnodes = lazyParentMap.get(target);
+        viewportObserver.unobserve(target);
+        lazyParentMap.delete(target);
+        if (!tnodes) continue;
+        for (const n of tnodes) {
+          if (n.isConnected && !processedNodes.has(n)) {
+            lazyPendingNodes.add(n);
+            any = true;
+          }
+        }
+      }
+      if (any) scheduleLazyTranslate();
+    },
+    { rootMargin: `${VIEWPORT_MARGIN_PX}px 0px` }
+  );
+  return viewportObserver;
+}
+
+function observeOffscreenNodes(nodes) {
+  if (!nodes.length) return;
+  const obs = ensureViewportObserver();
+  for (const n of nodes) {
+    const el = n.parentElement;
+    if (!el) continue;
+    let arr = lazyParentMap.get(el);
+    if (!arr) {
+      arr = [];
+      lazyParentMap.set(el, arr);
+      obs.observe(el);
+    }
+    arr.push(n);
+  }
+}
+
+function stopViewportObserver() {
+  if (viewportObserver) {
+    viewportObserver.disconnect();
+    viewportObserver = null;
+  }
+  if (lazyTranslateTimer) {
+    clearTimeout(lazyTranslateTimer);
+    lazyTranslateTimer = null;
+  }
+  lazyPendingNodes.clear();
+  lazyParentMap = new WeakMap();
+}
+
+function scheduleLazyTranslate() {
+  if (lazyTranslateTimer) return;
+  lazyTranslateTimer = setTimeout(runLazyTranslate, LAZY_DEBOUNCE_MS);
+}
+
+async function runLazyTranslate() {
+  lazyTranslateTimer = null;
+  if (!state.translated) {
+    lazyPendingNodes.clear();
+    return;
+  }
+  const nodes = [...lazyPendingNodes].filter(
+    (n) => n.isConnected && !processedNodes.has(n) && isCandidateText(n)
+  );
+  lazyPendingNodes.clear();
+  if (!nodes.length) return;
+  const settings = await getSettings();
+  try {
+    await translateNodeBatch(nodes, settings);
+  } catch (err) {
+    console.warn("[LLM 翻译] 视口懒翻译失败:", err?.message || err);
+  }
 }
 
 async function requestTranslate(texts, opts = {}) {
@@ -573,12 +712,11 @@ async function maybeAutoTranslate() {
   try {
     const settings = await getSettings();
     if (settings.enabled === false) return;
-    if (!settings.autoTranslate) return;
     const host = location.hostname.toLowerCase();
-    const blocked = (settings.autoTranslateBlocklist || [])
+    const allowed = (settings.autoTranslateAllowlist || [])
       .map((h) => (h || "").toLowerCase())
       .some((h) => h && (host === h || host.endsWith("." + h)));
-    if (blocked) return;
+    if (!allowed) return;
     autoTriggered = true;
     // 略等片刻，让 DOM 稳定（许多站点在 load 之后继续注入内容）
     setTimeout(() => {

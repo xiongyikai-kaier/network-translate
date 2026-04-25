@@ -20,8 +20,7 @@ const DEFAULT_SETTINGS = {
   maxCharsPerBatch: 3000,
   concurrency: 3,
   showFab: true,
-  autoTranslate: false,
-  autoTranslateBlocklist: []
+  autoTranslateAllowlist: []
 };
 
 async function getSettings() {
@@ -32,6 +31,15 @@ async function getSettings() {
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.sync.get(null);
   const merged = { ...DEFAULT_SETTINGS, ...existing };
+  // 清理旧键：从 v0.1 的全局开关 + 黑名单，迁移到 v0.2 的白名单模型
+  if ("autoTranslate" in existing) {
+    delete merged.autoTranslate;
+    await chrome.storage.sync.remove("autoTranslate").catch(() => {});
+  }
+  if ("autoTranslateBlocklist" in existing) {
+    delete merged.autoTranslateBlocklist;
+    await chrome.storage.sync.remove("autoTranslateBlocklist").catch(() => {});
+  }
   await chrome.storage.sync.set(merged);
 
   chrome.contextMenus.create({

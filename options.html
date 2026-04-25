@@ -94,14 +94,9 @@
           </label>
         </div>
         <div class="field">
-          <label>自动翻译</label>
-          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
-            <input id="autoTranslate" type="checkbox" /> 访问网页时自动翻译（首次加载后触发一次）
-          </label>
-        </div>
-        <div class="field">
-          <label>自动翻译黑名单（每行一个域名，不自动翻译该域名及其子域名）</label>
-          <textarea id="autoTranslateBlocklist" rows="3" placeholder="example.com&#10;docs.python.org"></textarea>
+          <label>自动翻译白名单（每行一个域名，访问时自动翻译该域名及其子域名）</label>
+          <textarea id="autoTranslateAllowlist" rows="3" placeholder="example.com&#10;docs.python.org"></textarea>
+          <p class="hint">在弹窗里打开"自动翻译本站"会把当前域名加进来，关闭则移除。</p>
         </div>
         <div class="field">
           <label>每批最大条数</label>
