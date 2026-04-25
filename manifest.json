@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "LLM 网页翻译",
+  "name": "AI 网页翻译",
   "version": "0.1.0",
-  "description": "使用大模型翻译网页内容，支持 OpenAI 兼容协议（OpenAI / DeepSeek / 智谱 / Moonshot 等）。",
+  "description": "使用 AI 大模型翻译网页内容，支持 OpenAI 兼容协议（OpenAI / DeepSeek / 智谱 / Moonshot 等）。",
   "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -11,7 +11,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "LLM 网页翻译",
+    "default_title": "AI 网页翻译",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

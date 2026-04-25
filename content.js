@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true, state: { translated: state.translated, translating: state.translating } });
       }
     } catch (err) {
-      console.error("[LLM 翻译]", err);
+      console.error("[AI 翻译]", err);
       showToast(`翻译失败：${err?.message || err}`);
       sendResponse({ ok: false, error: String(err?.message || err) });
     }
@@ -132,7 +132,6 @@ async function translatePage() {
   if (state.translating) return;
   state.translating = true;
   updateFabState();
-  showToast("正在翻译屏幕内文本…", { sticky: true, id: "llm-progress" });
   try {
     const settings = await getSettings();
     const allNodes = collectTextNodes(document.body);
@@ -150,7 +149,6 @@ async function translatePage() {
         if (isInViewport(n.parentElement)) visibleNodes.push(n);
         else offscreenNodes.push(n);
       }
-      // 整页都没人看到（极少见），就退回旧逻辑
       if (visibleNodes.length === 0) {
         visibleNodes = allNodes;
         offscreenNodes = [];
@@ -158,28 +156,26 @@ async function translatePage() {
     }
 
     if (visibleNodes.length > 0) {
-      await translateNodeBatch(visibleNodes, settings, { id: "llm-progress" });
+      await translateNodeBatch(visibleNodes, settings);
     }
 
     state.translated = true;
     if (offscreenNodes.length > 0) {
       observeOffscreenNodes(offscreenNodes);
       showToast(
-        `已翻译屏幕内 ${visibleNodes.length} 段，剩余 ${offscreenNodes.length} 段将随滚动加载`,
-        { id: "llm-progress" }
+        `已翻译屏幕内 ${visibleNodes.length} 段，剩余 ${offscreenNodes.length} 段将随滚动加载`
       );
     } else {
-      showToast(`已翻译 ${visibleNodes.length} 段文本`, { id: "llm-progress" });
+      showToast(`已翻译 ${visibleNodes.length} 段文本`);
     }
     startMutationObserver();
   } finally {
     state.translating = false;
     updateFabState();
-    dismissToast("llm-progress");
   }
 }
 
-async function translateNodeBatch(nodes, settings, progressOpts) {
+async function translateNodeBatch(nodes, settings) {
   if (!nodes.length) return;
   const texts = nodes.map((n) => n.nodeValue.trim());
   const applied = new Set();
@@ -188,15 +184,6 @@ async function translateNodeBatch(nodes, settings, progressOpts) {
     const cached = await requestTranslate(texts, { cacheOnly: true });
     if (cached.some(Boolean)) {
       applyTranslations(nodes, cached, settings.displayMode, applied);
-      if (progressOpts) {
-        const hit = cached.filter(Boolean).length;
-        if (hit > 0 && hit < nodes.length) {
-          showToast(`缓存命中 ${hit}/${nodes.length}，正在翻译剩余…`, {
-            sticky: true,
-            id: progressOpts.id
-          });
-        }
-      }
     }
   } catch (_) {}
   // 阶段 2：LLM 补翻译未命中项
@@ -210,6 +197,16 @@ async function translateSelection(text) {
     showToast("请先选中要翻译的文本");
     return;
   }
+  // 先查缓存，命中则直接显示，不闪 toast
+  try {
+    const cached = await requestTranslate(sel, { cacheOnly: true });
+    const result = Array.isArray(cached) ? cached[0] : cached;
+    if (result) {
+      showSelectionPopup(result, sel);
+      return;
+    }
+  } catch (_) {}
+  // 缓存未命中，显示进度并调 API
   showToast("翻译中…", { sticky: true, id: "llm-sel" });
   try {
     const translated = await requestTranslate(sel);
@@ -340,7 +337,7 @@ async function runLazyTranslate() {
   try {
     await translateNodeBatch(nodes, settings);
   } catch (err) {
-    console.warn("[LLM 翻译] 视口懒翻译失败:", err?.message || err);
+    console.warn("[AI 翻译] 视口懒翻译失败:", err?.message || err);
   }
 }
 
@@ -432,6 +429,41 @@ function dismissSelectionPopup() {
     selectionPopupEl = null;
   }
 }
+
+// ——— 滑词翻译：选中文本自动弹窗 ———
+let selectionTimer = null;
+const SELECTION_DEBOUNCE_MS = 300;
+
+async function onSelectionAuto() {
+  try {
+    const settings = await getSettings();
+    if (!settings.inlineSelection) return;
+  } catch (_) { return; }
+
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const text = sel.toString().trim();
+  if (!text || text.length < 2) return;
+
+  const range = sel.getRangeAt(0);
+  let el = range.startContainer?.nodeType === 3
+    ? range.startContainer.parentElement
+    : range.startContainer;
+  while (el) {
+    if (isOurInjected(el)) return;
+    el = el.parentElement;
+  }
+
+  translateSelection(text);
+}
+
+document.addEventListener("mouseup", () => {
+  if (selectionTimer) clearTimeout(selectionTimer);
+  selectionTimer = setTimeout(() => {
+    selectionTimer = null;
+    onSelectionAuto();
+  }, SELECTION_DEBOUNCE_MS);
+});
 
 // ——— UI：浮动按钮（FAB） ———
 const FAB_DRAG_THRESHOLD = 4; // px，超过视为拖拽而非点击
@@ -716,7 +748,7 @@ async function runMutationTranslate() {
     const full = await requestTranslate(texts);
     applyTranslations(visibleNodes, full, settings.displayMode, applied);
   } catch (err) {
-    console.warn("[LLM 翻译] 自动翻译新增内容失败:", err?.message || err);
+    console.warn("[AI 翻译] 自动翻译新增内容失败:", err?.message || err);
   }
 
   if (offscreenNodes.length > 0) {

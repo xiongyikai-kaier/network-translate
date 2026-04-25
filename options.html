@@ -2,12 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>LLM 网页翻译 · 设置</title>
+    <title>AI 网页翻译 · 设置</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <main>
-      <h1>LLM 网页翻译 · 设置</h1>
+      <h1>AI 网页翻译 · 设置</h1>
 
       <section class="card">
         <h2>模型服务</h2>
@@ -100,6 +100,12 @@
           </label>
         </div>
         <div class="field">
+          <label>滑词翻译</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
+            <input id="inlineSelection" type="checkbox" checked /> 选中文本后自动弹窗显示译文
+          </label>
+        </div>
+        <div class="field">
           <label>自动翻译白名单（每行一个域名，访问时自动翻译该域名及其子域名）</label>
           <textarea id="autoTranslateAllowlist" rows="3" placeholder="example.com&#10;docs.python.org"></textarea>
           <p class="hint">在弹窗里打开"自动翻译本站"会把当前域名加进来，关闭则移除。</p>
@@ -123,11 +129,24 @@
         </div>
       </section>
 
+      <section class="card reward-section">
+        <h2>打赏支持</h2>
+        <p class="hint">如果这个工具对你有帮助，欢迎微信打赏支持，感谢 🎉</p>
+        <div class="reward-qr">
+          <img src="images/wx.png" alt="微信打赏" />
+        </div>
+      </section>
+
       <section class="card">
         <h2>翻译缓存</h2>
         <p class="hint">
           相同「目标语言 + 模型 + 文本」会命中缓存，无需再次调用大模型。页面翻译会先用缓存立刻渲染，再调 LLM 补齐未命中项。
         </p>
+        <div class="field">
+          <label>最大缓存条数</label>
+          <input id="maxCacheEntries" type="number" min="100" max="50000" />
+          <p class="hint">超过上限时会淘汰最早未使用的条目。默认 5000，设置过低可能降低翻译速度。</p>
+        </div>
         <div class="actions" style="margin-top: 6px;">
           <button id="cacheRefresh">刷新统计</button>
           <button id="cacheClear">清空缓存</button>

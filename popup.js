@@ -8,12 +8,14 @@ async function load() {
     targetLang: "中文（简体）",
     displayMode: "bilingual",
     showFab: true,
+    inlineSelection: true,
     autoTranslateAllowlist: []
   });
   $("toggle-enabled").checked = s.enabled !== false;
   $("target-lang").value = s.targetLang;
   $("display-mode").value = s.displayMode;
   $("toggle-fab").checked = s.showFab !== false;
+  $("toggle-inline-selection").checked = s.inlineSelection !== false;
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentHost = hostOf(tab?.url || "");
@@ -26,7 +28,8 @@ async function saveBasics() {
     enabled: $("toggle-enabled").checked,
     targetLang: $("target-lang").value,
     displayMode: $("display-mode").value,
-    showFab: $("toggle-fab").checked
+    showFab: $("toggle-fab").checked,
+    inlineSelection: $("toggle-inline-selection").checked
   });
   renderEnabledState();
 }
@@ -198,6 +201,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("target-lang").addEventListener("change", saveBasics);
   $("display-mode").addEventListener("change", saveBasics);
   $("toggle-fab").addEventListener("change", saveBasics);
+  $("toggle-inline-selection").addEventListener("change", saveBasics);
   $("toggle-auto").addEventListener("change", toggleSiteAuto);
 
   $("btn-quick-translate").addEventListener("click", doQuickTranslate);

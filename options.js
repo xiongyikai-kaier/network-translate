@@ -28,7 +28,9 @@ const DEFAULTS = {
   concurrency: 3,
   showFab: true,
   autoTranslateAllowlist: [],
-  viewportFirst: true
+  viewportFirst: true,
+  maxCacheEntries: 5000,
+  inlineSelection: true
 };
 
 const $ = (id) => document.getElementById(id);
@@ -52,6 +54,8 @@ async function load() {
   $("showFab").checked = s.showFab !== false;
   $("viewportFirst").checked = s.viewportFirst !== false;
   $("autoTranslateAllowlist").value = (s.autoTranslateAllowlist || []).join("\n");
+  $("maxCacheEntries").value = s.maxCacheEntries;
+  $("inlineSelection").checked = s.inlineSelection !== false;
   toggleProtocolFields();
 }
 
@@ -76,7 +80,9 @@ function collect() {
     autoTranslateAllowlist: $("autoTranslateAllowlist").value
       .split(/\r?\n/)
       .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
+      .filter(Boolean),
+    maxCacheEntries: Math.max(100, Number($("maxCacheEntries").value) || 5000),
+    inlineSelection: $("inlineSelection").checked
   };
 }
 
@@ -124,7 +130,8 @@ async function refreshCacheStats() {
     const resp = await chrome.runtime.sendMessage({ type: "CACHE_STATS" });
     const s = resp?.stats || { count: 0, chars: 0, max: 0 };
     const kb = (s.chars / 1024).toFixed(1);
-    el.textContent = `共 ${s.count} / ${s.max} 条 · 约 ${kb} KB`;
+    const max = $("maxCacheEntries").value || s.max;
+    el.textContent = `共 ${s.count} / ${max} 条 · 约 ${kb} KB`;
   } catch (_) {
     el.textContent = "";
   }

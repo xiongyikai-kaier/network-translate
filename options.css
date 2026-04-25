@@ -90,6 +90,22 @@ button.primary:hover { filter: brightness(1.05); }
 #status.ok { color: #058758; }
 #status.err { color: #c0271d; }
 
+.reward-section {
+  text-align: center;
+}
+.reward-section h2 {
+  text-align: left;
+}
+.reward-qr {
+  margin-top: 12px;
+}
+.reward-qr img {
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+
 @media (prefers-color-scheme: dark) {
   html, body { background: #17181c; color: #eaecef; }
   h1 { color: #8ab3ff; }

@@ -21,7 +21,9 @@ const DEFAULT_SETTINGS = {
   concurrency: 3,
   showFab: true,
   autoTranslateAllowlist: [],
-  viewportFirst: true
+  viewportFirst: true,
+  maxCacheEntries: 5000,
+  inlineSelection: true
 };
 
 async function getSettings() {
@@ -75,7 +77,7 @@ async function sendOrInject(tabId, msg) {
       });
       await chrome.tabs.sendMessage(tabId, msg);
     } catch (err) {
-      console.warn("[LLM 翻译] 无法注入脚本:", err?.message || err);
+      console.warn("[AI 翻译] 无法注入脚本:", err?.message || err);
     }
   }
 }
@@ -179,8 +181,12 @@ async function handleTranslate({ texts, targetLang, sourceLang, cacheOnly }) {
 
 // ——— 翻译缓存（chrome.storage.local + SW 内存 Map） ———
 const CACHE_STORAGE_KEY = "llmTransCache";
-const CACHE_MAX_ENTRIES = 5000;
 const CACHE_FLUSH_DELAY_MS = 600;
+
+async function getMaxCacheEntries() {
+  const s = await chrome.storage.sync.get({ maxCacheEntries: 5000 });
+  return Math.max(100, Number(s.maxCacheEntries) || 5000);
+}
 
 let cacheMap = null;
 let cacheDirty = false;
@@ -212,9 +218,10 @@ function scheduleCacheFlush() {
     cacheFlushTimer = null;
     if (!cacheDirty || !cacheMap) return;
     cacheDirty = false;
-    if (cacheMap.size > CACHE_MAX_ENTRIES) {
+    const maxEntries = await getMaxCacheEntries();
+    if (cacheMap.size > maxEntries) {
       const arr = [...cacheMap.entries()].sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
-      const drop = arr.slice(0, cacheMap.size - CACHE_MAX_ENTRIES);
+      const drop = arr.slice(0, cacheMap.size - maxEntries);
       for (const [k] of drop) cacheMap.delete(k);
     }
     try {
@@ -222,7 +229,7 @@ function scheduleCacheFlush() {
         [CACHE_STORAGE_KEY]: { version: 1, entries: Object.fromEntries(cacheMap) }
       });
     } catch (err) {
-      console.warn("[LLM 翻译] 缓存写入失败:", err?.message || err);
+      console.warn("[AI 翻译] 缓存写入失败:", err?.message || err);
     }
   }, CACHE_FLUSH_DELAY_MS);
 }
@@ -265,7 +272,8 @@ async function getCacheStats() {
   const map = await getCacheMap();
   let chars = 0;
   for (const v of map.values()) chars += (v.t || "").length;
-  return { count: map.size, chars, max: CACHE_MAX_ENTRIES };
+  const max = await getMaxCacheEntries();
+  return { count: map.size, chars, max };
 }
 
 async function clearCache() {
