@@ -9,7 +9,10 @@
     <div class="app">
       <header>
         <div class="title">AI 网页翻译</div>
-        <a id="open-options" href="#">设置</a>
+        <div style="display:flex;gap:12px;">
+          <a id="open-history" href="#" style="font-size:12px;">历史</a>
+          <a id="open-options" href="#" style="font-size:12px;">设置</a>
+        </div>
       </header>
 
       <div class="row master">
@@ -21,6 +24,12 @@
       </div>
 
       <fieldset id="main-panel" class="main-panel">
+      <div class="row">
+        <label>当前模型</label>
+        <select id="active-model">
+          <option value="">默认配置</option>
+        </select>
+      </div>
       <div class="row">
         <label>目标语言</label>
         <select id="target-lang">

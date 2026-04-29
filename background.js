@@ -4,13 +4,13 @@
 const DEFAULT_SETTINGS = {
   enabled: true,
   provider: "openai",
-  apiProtocol: "openai", // openai | anthropic
+  apiProtocol: "openai",
   apiKey: "",
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   targetLang: "中文（简体）",
   sourceLang: "auto",
-  displayMode: "bilingual", // bilingual | replace
+  displayMode: "bilingual",
   systemPrompt:
     "你是一个专业的翻译引擎。请将用户提供的文本翻译成{targetLang}，保持原意、语气与排版。仅输出译文，不要解释、不要加引号。如果输入是 JSON 数组，请输出同长度的 JSON 数组（每项是对应译文字符串），除此之外不要输出任何内容。",
   temperature: 0.2,
@@ -23,7 +23,13 @@ const DEFAULT_SETTINGS = {
   autoTranslateAllowlist: [],
   viewportFirst: true,
   maxCacheEntries: 5000,
-  inlineSelection: true
+  cacheExpireHours: 72,
+  inlineSelection: true,
+  hideToast: false,
+  maxHistoryEntries: 200,
+  historyEnabled: true,
+  activeModelId: null,
+  models: []
 };
 
 async function getSettings() {
@@ -106,7 +112,18 @@ chrome.commands.onCommand.addListener(async (command) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "LLM_TRANSLATE") {
     handleTranslate(msg.payload)
-      .then((result) => sendResponse({ ok: true, result }))
+      .then((result) => {
+        if (msg.payload?.saveToHistory) {
+          addHistoryEntry({
+            type: msg.payload.isPage ? "page" : "text",
+            original: msg.payload.texts,
+            translated: result,
+            targetLang: msg.payload.targetLang,
+            sourceLang: msg.payload.sourceLang
+          }).catch(() => {});
+        }
+        return sendResponse({ ok: true, result });
+      })
       .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
   }
@@ -120,6 +137,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg?.type === "CACHE_CLEAR") {
     clearCache().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg?.type === "HISTORY_LIST") {
+    getHistoryList(msg.payload?.limit).then((list) => sendResponse({ ok: true, list }));
+    return true;
+  }
+  if (msg?.type === "HISTORY_SEARCH") {
+    searchHistory(msg.payload?.keyword).then((list) => sendResponse({ ok: true, list }));
+    return true;
+  }
+  if (msg?.type === "HISTORY_CLEAR") {
+    clearHistory().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg?.type === "HISTORY_DELETE") {
+    deleteHistoryEntry(msg.payload?.id).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg?.type === "GET_MODELS") {
+    getModels().then((m) => sendResponse({ ok: true, models: m }));
+    return true;
+  }
+  if (msg?.type === "SAVE_MODEL") {
+    saveModel(msg.payload?.model).then((m) => sendResponse({ ok: true, model: m }));
+    return true;
+  }
+  if (msg?.type === "DELETE_MODEL") {
+    deleteModel(msg.payload?.id).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg?.type === "ACTIVATE_MODEL") {
+    activateModel(msg.payload?.id).then(() => sendResponse({ ok: true }));
     return true;
   }
 });
@@ -422,3 +471,201 @@ function normalizeLen(arr, n) {
   if (arr.length > n) return arr.slice(0, n);
   return arr.concat(new Array(n - arr.length).fill(""));
 }
+
+// ——— 翻译历史记录管理 ———
+const HISTORY_STORAGE_KEY = "llmTransHistory";
+
+async function getMaxHistoryEntries() {
+  const s = await chrome.storage.sync.get({ maxHistoryEntries: 200 });
+  return Math.max(10, Number(s.maxHistoryEntries) || 200);
+}
+
+async function isHistoryEnabled() {
+  const s = await chrome.storage.sync.get({ historyEnabled: true });
+  return s.historyEnabled !== false;
+}
+
+async function addHistoryEntry({ type, original, translated, targetLang, sourceLang }) {
+  if (!(await isHistoryEnabled())) return;
+  try {
+    const { [HISTORY_STORAGE_KEY]: raw } = await chrome.storage.local.get(HISTORY_STORAGE_KEY);
+    let history = raw?.history && Array.isArray(raw.history) ? raw.history : [];
+    const entry = {
+      id: Date.now().toString() + "-" + Math.random().toString(36).slice(2, 9),
+      type: type || "text",
+      original: typeof original === "string" ? original : JSON.stringify(original),
+      translated: typeof translated === "string" ? translated : JSON.stringify(translated),
+      targetLang: targetLang || "中文（简体）",
+      sourceLang: sourceLang || "auto",
+      ts: Date.now()
+    };
+    history.unshift(entry);
+    const maxEntries = await getMaxHistoryEntries();
+    if (history.length > maxEntries) {
+      history = history.slice(0, maxEntries);
+    }
+    await chrome.storage.local.set({ [HISTORY_STORAGE_KEY]: { version: 1, history } });
+  } catch (err) {
+    console.warn("[AI 翻译] 保存历史记录失败:", err?.message || err);
+  }
+}
+
+async function getHistoryList(limit) {
+  try {
+    const { [HISTORY_STORAGE_KEY]: raw } = await chrome.storage.local.get(HISTORY_STORAGE_KEY);
+    const history = raw?.history && Array.isArray(raw.history) ? raw.history : [];
+    const maxLimit = Math.max(1, Number(limit) || 100);
+    return history.slice(0, maxLimit);
+  } catch (_) {
+    return [];
+  }
+}
+
+async function searchHistory(keyword) {
+  if (!keyword || typeof keyword !== "string") return getHistoryList(100);
+  const kw = keyword.toLowerCase().trim();
+  try {
+    const { [HISTORY_STORAGE_KEY]: raw } = await chrome.storage.local.get(HISTORY_STORAGE_KEY);
+    const history = raw?.history && Array.isArray(raw.history) ? raw.history : [];
+    return history.filter((h) => {
+      const orig = (h.original || "").toLowerCase();
+      const trans = (h.translated || "").toLowerCase();
+      return orig.includes(kw) || trans.includes(kw);
+    });
+  } catch (_) {
+    return [];
+  }
+}
+
+async function deleteHistoryEntry(id) {
+  if (!id) return;
+  try {
+    const { [HISTORY_STORAGE_KEY]: raw } = await chrome.storage.local.get(HISTORY_STORAGE_KEY);
+    const history = raw?.history && Array.isArray(raw.history) ? raw.history : [];
+    const filtered = history.filter((h) => h.id !== id);
+    await chrome.storage.local.set({ [HISTORY_STORAGE_KEY]: { version: 1, history: filtered } });
+  } catch (err) {
+    console.warn("[AI 翻译] 删除历史记录失败:", err?.message || err);
+  }
+}
+
+async function clearHistory() {
+  try {
+    await chrome.storage.local.remove(HISTORY_STORAGE_KEY);
+  } catch (_) {}
+}
+
+// ——— 多模型管理 ———
+const MODELS_STORAGE_KEY = "llmTransModels";
+
+async function getModels() {
+  try {
+    const { [MODELS_STORAGE_KEY]: raw } = await chrome.storage.local.get(MODELS_STORAGE_KEY);
+    return raw?.models && Array.isArray(raw.models) ? raw.models : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function saveModel(model) {
+  if (!model || !model.name) throw new Error("模型名称不能为空");
+  try {
+    const models = await getModels();
+    const now = Date.now();
+    if (model.id) {
+      const idx = models.findIndex((m) => m.id === model.id);
+      if (idx >= 0) {
+        models[idx] = { ...models[idx], ...model, updatedAt: now };
+      } else {
+        models.push({ ...model, id: model.id || "model-" + now, createdAt: now, updatedAt: now });
+      }
+    } else {
+      models.push({ ...model, id: "model-" + now, createdAt: now, updatedAt: now });
+    }
+    await chrome.storage.local.set({ [MODELS_STORAGE_KEY]: { version: 1, models } });
+    return model;
+  } catch (err) {
+    console.warn("[AI 翻译] 保存模型失败:", err?.message || err);
+    throw err;
+  }
+}
+
+async function deleteModel(id) {
+  if (!id) return;
+  try {
+    const models = await getModels();
+    const filtered = models.filter((m) => m.id !== id);
+    await chrome.storage.local.set({ [MODELS_STORAGE_KEY]: { version: 1, models: filtered } });
+    const settings = await getSettings();
+    if (settings.activeModelId === id) {
+      await chrome.storage.sync.set({ activeModelId: null });
+    }
+  } catch (err) {
+    console.warn("[AI 翻译] 删除模型失败:", err?.message || err);
+  }
+}
+
+async function activateModel(id) {
+  try {
+    const models = await getModels();
+    if (id) {
+      const model = models.find((m) => m.id === id);
+      if (!model) throw new Error("模型不存在");
+      await chrome.storage.sync.set({ activeModelId: id });
+      if (model.apiProtocol) await chrome.storage.sync.set({ apiProtocol: model.apiProtocol });
+      if (model.baseUrl) await chrome.storage.sync.set({ baseUrl: model.baseUrl });
+      if (model.apiKey) await chrome.storage.sync.set({ apiKey: model.apiKey });
+      if (model.model) await chrome.storage.sync.set({ model: model.model });
+      if (model.temperature !== undefined) await chrome.storage.sync.set({ temperature: model.temperature });
+      if (model.maxTokens !== undefined) await chrome.storage.sync.set({ maxTokens: model.maxTokens });
+    } else {
+      await chrome.storage.sync.set({ activeModelId: null });
+    }
+  } catch (err) {
+    console.warn("[AI 翻译] 激活模型失败:", err?.message || err);
+    throw err;
+  }
+}
+
+// ——— 缓存过期管理 ———
+async function getCacheExpireMs() {
+  const s = await chrome.storage.sync.get({ cacheExpireHours: 72 });
+  const hours = Math.max(1, Number(s.cacheExpireHours) || 72);
+  return hours * 60 * 60 * 1000;
+}
+
+// 重写 cacheLookup 以支持过期检查
+const originalCacheLookup = cacheLookup;
+async function cacheLookupWithExpiry(texts, opts) {
+  const map = await getCacheMap();
+  const now = Date.now();
+  const expireMs = await getCacheExpireMs();
+  const results = new Array(texts.length).fill(null);
+  const missingIndices = [];
+  let touched = false;
+  let expired = false;
+
+  for (let i = 0; i < texts.length; i++) {
+    const k = cacheKey(texts[i], opts);
+    const v = map.get(k);
+    if (v && typeof v.t === "string" && v.t.length > 0) {
+      if (v.ts && now - v.ts > expireMs) {
+        map.delete(k);
+        expired = true;
+        missingIndices.push(i);
+      } else {
+        results[i] = v.t;
+        v.ts = now;
+        v.h = (v.h || 0) + 1;
+        touched = true;
+      }
+    } else {
+      missingIndices.push(i);
+    }
+  }
+  if (touched || expired) scheduleCacheFlush();
+  return { results, missingIndices };
+}
+
+// 替换原来的 cacheLookup
+cacheLookup = cacheLookupWithExpiry;

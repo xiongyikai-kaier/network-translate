@@ -224,7 +224,7 @@ async function translateSelection(text) {
   // 缓存未命中，显示进度并调 API
   showToast("翻译中…", { sticky: true, id: "llm-sel" });
   try {
-    const translated = await requestTranslate(sel);
+    const translated = await requestTranslate(sel, { saveToHistory: true });
     dismissToast("llm-sel");
     showSelectionPopup(Array.isArray(translated) ? translated[0] : translated, sel);
   } catch (err) {
@@ -363,7 +363,12 @@ async function runLazyTranslate() {
 async function requestTranslate(texts, opts = {}) {
   const resp = await chrome.runtime.sendMessage({
     type: "LLM_TRANSLATE",
-    payload: { texts, cacheOnly: !!opts.cacheOnly }
+    payload: {
+      texts,
+      cacheOnly: !!opts.cacheOnly,
+      saveToHistory: !!opts.saveToHistory,
+      isPage: !!opts.isPage
+    }
   });
   if (!resp?.ok) throw new Error(resp?.error || "翻译服务未响应");
   return resp.result;

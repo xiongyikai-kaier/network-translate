@@ -70,7 +70,17 @@
         <h2>翻译选项</h2>
         <div class="field">
           <label>目标语言</label>
-          <input id="targetLang" type="text" placeholder="中文（简体）" />
+          <select id="targetLang">
+            <option>中文（简体）</option>
+            <option>中文（繁體）</option>
+            <option>English</option>
+            <option>日本語</option>
+            <option>한국어</option>
+            <option>Français</option>
+            <option>Deutsch</option>
+            <option>Español</option>
+            <option>Русский</option>
+          </select>
         </div>
         <div class="field">
           <label>源语言</label>
@@ -159,10 +169,45 @@
           <input id="maxCacheEntries" type="number" min="100" max="50000" />
           <p class="hint">超过上限时会淘汰最早未使用的条目。默认 5000，设置过低可能降低翻译速度。</p>
         </div>
+        <div class="field">
+          <label>缓存有效期（小时）</label>
+          <input id="cacheExpireHours" type="number" min="1" max="8760" />
+          <p class="hint">缓存条目超过此时间后会自动过期，需要重新翻译。默认 72 小时（3 天），设为较大值可长期保留。</p>
+        </div>
         <div class="actions" style="margin-top: 6px;">
           <button id="cacheRefresh">刷新统计</button>
           <button id="cacheClear">清空缓存</button>
           <span id="cacheStats" class="hint" style="margin:0;"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>历史记录</h2>
+        <div class="field">
+          <label>启用历史记录</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;color:#555;">
+            <input id="historyEnabled" type="checkbox" checked /> 自动保存翻译历史（快速翻译、划词翻译）
+          </label>
+        </div>
+        <div class="field">
+          <label>最大历史记录条数</label>
+          <input id="maxHistoryEntries" type="number" min="10" max="1000" />
+          <p class="hint">超过上限时会淘汰最早的记录。默认 200 条。</p>
+        </div>
+        <div class="actions" style="margin-top: 6px;">
+          <button id="btn-open-history">打开历史记录</button>
+          <button id="btn-history-clear" style="border-color:#f1b2ac;color:#c0271d;">清空历史</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>多模型管理</h2>
+        <p class="hint">
+          可以配置多个不同服务商的 API，在弹窗中一键快速切换。激活的模型会覆盖当前的 API 配置。
+        </p>
+        <div id="models-list"></div>
+        <div class="actions" style="margin-top: 16px;">
+          <button id="btn-add-model" class="primary">+ 添加模型配置</button>
         </div>
       </section>
 
