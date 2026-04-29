@@ -2,6 +2,33 @@ const $ = (id) => document.getElementById(id);
 
 let currentHost = "";
 
+async function loadModels() {
+  const select = $("active-model");
+  if (!select) return;
+
+  try {
+    const [modelsResp, settingsResp] = await Promise.all([
+      chrome.runtime.sendMessage({ type: "GET_MODELS" }),
+      chrome.runtime.sendMessage({ type: "GET_SETTINGS" })
+    ]);
+
+    const models = modelsResp?.models || [];
+    const activeId = settingsResp?.settings?.activeModelId;
+
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">默认配置</option>';
+    models.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.name;
+      if (m.id === activeId || (!activeId && m.id === currentValue)) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
 async function load() {
   const s = await chrome.storage.sync.get({
     enabled: true,
@@ -16,6 +43,8 @@ async function load() {
   $("display-mode").value = s.displayMode;
   $("toggle-fab").checked = s.showFab !== false;
   $("toggle-inline-selection").checked = s.inlineSelection !== false;
+
+  await loadModels();
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentHost = hostOf(tab?.url || "");
@@ -178,7 +207,7 @@ async function doQuickTranslate() {
     const s = await chrome.storage.sync.get({ targetLang: "中文（简体）" });
     const resp = await chrome.runtime.sendMessage({
       type: "LLM_TRANSLATE",
-      payload: { texts: input, targetLang: s.targetLang }
+      payload: { texts: input, targetLang: s.targetLang, saveToHistory: true }
     });
     if (!resp?.ok) throw new Error(resp?.error || "翻译失败");
     const text = Array.isArray(resp.result) ? resp.result[0] : resp.result;
@@ -203,6 +232,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("toggle-fab").addEventListener("change", saveBasics);
   $("toggle-inline-selection").addEventListener("change", saveBasics);
   $("toggle-auto").addEventListener("change", toggleSiteAuto);
+
+  $("active-model")?.addEventListener("change", async () => {
+    const id = $("active-model").value;
+    try {
+      await chrome.runtime.sendMessage({
+        type: "ACTIVATE_MODEL",
+        payload: { id: id || null }
+      });
+    } catch (_) {}
+  });
 
   $("btn-quick-translate").addEventListener("click", doQuickTranslate);
   $("quick-input").addEventListener("keydown", (e) => {
@@ -245,4 +284,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   $("open-options").addEventListener("click", openOpts);
   $("open-options-2").addEventListener("click", openOpts);
+
+  $("open-history")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL("history.html") });
+    window.close();
+  });
 });

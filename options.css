@@ -121,6 +121,88 @@ button.primary:hover { filter: brightness(1.05); }
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
 
+.model-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: #fafbff;
+}
+.model-card.active {
+  border-color: #4f8cff;
+  background: #f0f5ff;
+}
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.model-name {
+  font-weight: 600;
+  color: #1f3a8a;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.model-active-badge {
+  background: #4f8cff;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.model-actions {
+  display: flex;
+  gap: 6px;
+}
+.model-actions button {
+  padding: 4px 10px;
+  font-size: 11px;
+  min-width: auto;
+  flex: none;
+}
+.model-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  font-size: 11px;
+  color: #6b7280;
+}
+.model-detail-item {
+  display: flex;
+  gap: 4px;
+}
+.model-detail-label {
+  color: #9ca3af;
+}
+.model-edit-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+.model-edit-form .field {
+  margin-bottom: 10px;
+}
+.model-edit-form .field label {
+  font-size: 11px;
+}
+.model-edit-form input,
+.model-edit-form select {
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.model-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.model-edit-actions button {
+  flex: none;
+}
+
 @media (prefers-color-scheme: dark) {
   html, body { background: #17181c; color: #eaecef; }
   h1 { color: #8ab3ff; }
@@ -133,4 +215,9 @@ button.primary:hover { filter: brightness(1.05); }
   .hint code { background: #2a2c33; }
   button { background: #2a2c33; color: #eaecef; border-color: #3a3d46; }
   button:hover { background: #33363f; }
+  .model-card { background: #2a2c33; border-color: #3a3d46; }
+  .model-card.active { border-color: #4f8cff; background: #232b3d; }
+  .model-name { color: #8ab3ff; }
+  .model-details { color: #9aa0a6; }
+  .model-edit-form { border-top-color: #3a3d46; }
 }

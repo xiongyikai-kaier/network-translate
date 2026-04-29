@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>翻译历史记录</title>
+    <link rel="stylesheet" href="options.css" />
+    <style>
+      .history-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .history-controls input[type="text"] {
+        flex: 1;
+        max-width: 320px;
+      }
+      .history-item {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        background: #fff;
+      }
+      .history-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .history-meta {
+        font-size: 11px;
+        color: #9ca3af;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .history-type {
+        background: #eef3ff;
+        color: #1f3a8a;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .history-actions {
+        display: flex;
+        gap: 6px;
+      }
+      .history-actions button {
+        padding: 4px 8px;
+        font-size: 11px;
+        min-width: auto;
+        flex: none;
+      }
+      .history-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .history-col {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .history-label {
+        font-size: 11px;
+        color: #6b7280;
+        font-weight: 600;
+      }
+      .history-text {
+        font-size: 12px;
+        line-height: 1.6;
+        color: #1a1a1a;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 120px;
+        overflow: auto;
+        padding: 4px 0;
+      }
+      .history-empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: #9ca3af;
+        font-size: 13px;
+      }
+      .history-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .model-selector {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 12px 14px;
+        background: #eef3ff;
+        border-radius: 8px;
+        margin-bottom: 16px;
+      }
+      .model-selector label {
+        font-size: 12px;
+        color: #1f3a8a;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .model-selector select {
+        flex: 1;
+        max-width: 280px;
+      }
+      @media (max-width: 520px) {
+        .history-content {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        .history-item { background: #2a2c33; border-color: #3a3d46; }
+        .history-type { background: #232b3d; color: #8ab3ff; }
+        .history-text { color: #eaecef; }
+        .model-selector { background: #232b3d; }
+        .model-selector label { color: #8ab3ff; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>翻译历史记录</h1>
+
+      <section class="card">
+        <div class="model-selector">
+          <label>当前模型</label>
+          <select id="activeModel">
+            <option value="">默认配置</option>
+          </select>
+          <button id="btn-open-options" class="primary" style="flex:none;padding:7px 12px;">管理模型</button>
+        </div>
+
+        <div class="history-toolbar">
+          <div class="history-controls">
+            <input id="search-input" type="text" placeholder="搜索原文或译文..." />
+            <button id="btn-search">搜索</button>
+          </div>
+          <div class="actions" style="margin:0;">
+            <button id="btn-refresh">刷新</button>
+            <button id="btn-clear-all" style="border-color:#f1b2ac;color:#c0271d;">清空全部</button>
+          </div>
+        </div>
+
+        <div id="history-list"></div>
+      </section>
+
+      <div class="actions">
+        <button id="btn-back" onclick="window.close();">关闭</button>
+        <span id="status"></span>
+      </div>
+    </main>
+    <script src="history.js"></script>
+  </body>
+</html>
